@@ -22,3 +22,15 @@ Every number here comes from a real run, with the script that produced it. Add a
 | Largest chunk | 8,269 chars | 1,670 chars | -79.8% | `src/build_chunks.py` |
 
 Fix: split oversized lines at sentence boundaries, fold tiny chunks into the previous chunk.
+
+## Embeddings
+
+| Metric | Value | How measured |
+|---|---|---|
+| Embedding model | BAAI/bge-small-en-v1.5 (384 dimensions, 512-token limit, runs locally on CPU, no per-call cost) | `src/embed_demo.py` |
+| Tokens per chunk | avg 266, 95th percentile 469, max 658 | `src/check_token_lengths.py` |
+| Chunks over 256 tokens | 1,689 of 3,408 (49.6%), which a 256-token model would silently truncate | `src/check_token_lengths.py` |
+| Chunks over 512 tokens | 81 of 3,408 (2.4%), truncated in the embedding only (full text still sent to the LLM) | `src/check_token_lengths.py` |
+
+| Index build time | 3,408 chunks embedded and stored in 289 seconds (about 12 chunks/s) on a laptop CPU | `src/build_index.py` |
+
