@@ -34,3 +34,17 @@ Fix: split oversized lines at sentence boundaries, fold tiny chunks into the pre
 
 | Index build time | 3,408 chunks embedded and stored in 289 seconds (about 12 chunks/s) on a laptop CPU | `src/build_index.py` |
 
+## Retrieval baseline (v1: bge-small-en-v1.5, 1,500-char chunks, top-5)
+
+| Metric | Result | Source |
+|---|---|---|
+| Eval set | 16 questions (12 answerable, 4 unanswerable); retrieval scored on the 12 answerable (16 gold items) | evals/questions.jsonl |
+| Recall@1 | 6/16 = 38% | src/eval_retrieval.py |
+| Recall@3 | 10/16 = 62% | src/eval_retrieval.py |
+| Recall@5 | 10/16 = 62% | src/eval_retrieval.py |
+| Recall@10 | 10/16 = 62% (nothing found at ranks 6-10, so raising k alone does not help) | src/eval_retrieval.py |
+| MRR | 0.479 | src/eval_retrieval.py |
+| Full-hit@5 by question type | recent_fact 1/1, single_fact 3/3, exact_number 3/4, cross_company 0/4 | src/eval_retrieval.py |
+| Scoring note | First run with strict single-source matching gave Recall@5 44% and MRR 0.374. After accepting the same fact from a second document (press release or 10-Q), Recall@5 is 62% and MRR 0.479. This is a correction of false misses in the eval, not a system improvement, so the baseline is 62% / 0.479. | evals/validate_questions.py |
+| Failure patterns found | Cross-company questions retrieve only one of the two companies. Bare table rows rank poorly (AMD net income not in the top 50 of 3,408 chunks). | src/debug_retrieval.py |
+| Caveat | Small eval set; expand to about 40 questions before quoting numbers externally | |

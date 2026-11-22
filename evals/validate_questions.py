@@ -2,55 +2,70 @@ import json
 from collections import Counter
 from pathlib import Path
 
-PROCESSED = Path("data/processed")
-TYPES = {
-    "recent_fact", "single_fact", "exact_number",
-    "cross_company", "multi_section", "unanswerable",
-}
-FIELDS = ["id", "type", "question", "answer", "gold"]
+ROOT = Path(__file__).resolve().parent.parent
+ALLOWED_TYPES = {"recent_fact", "single_fact", "exact_number",
+                 "cross_company", "multi_section", "unanswerable"}
+REQUIRED = ["id", "type", "question", "answer", "gold"]
+
+_text_cache = {}
 
 
-def find_file(stem):
-    matches = list(PROCESSED.glob(f"*/{stem}.txt"))
-    return matches[0] if matches else None
+def source_text(stem):
+    """Return the text of data/processed/<TICKER>/<stem>.txt, or None if missing."""
+    if stem not in _text_cache:
+        matches = list((ROOT / "data" / "processed").glob(f"*/{stem}.txt"))
+        _text_cache[stem] = matches[0].read_text(encoding="utf-8") if matches else None
+    return _text_cache[stem]
 
 
-errors, seen, types = [], set(), Counter()
-lines = Path("evals/questions.jsonl").read_text(encoding="utf-8").splitlines()
+def check_item(n, item, label, errors):
+    if not isinstance(item, dict) or "source" not in item or "evidence" not in item:
+        errors.append(f"line {n}: {label} needs 'source' and 'evidence'")
+        return
+    text = source_text(item["source"])
+    if text is None:
+        errors.append(f"line {n}: {label} source file not found: {item['source']}")
+    elif item["evidence"] not in text:
+        errors.append(f"line {n}: {label} evidence not found in {item['source']}: {item['evidence']!r}")
 
-for n, line in enumerate(lines, 1):
+
+lines = (ROOT / "evals" / "questions.jsonl").read_text(encoding="utf-8").splitlines()
+errors = []
+seen = set()
+types = Counter()
+
+for n, line in enumerate(lines, start=1):
     if not line.strip():
         continue
     try:
         q = json.loads(line)
     except json.JSONDecodeError as e:
-        errors.append(f"line {n}: not valid JSON ({e})")
+        errors.append(f"line {n}: invalid JSON ({e})")
         continue
 
-    for field in FIELDS:
-        if field not in q:
-            errors.append(f"line {n}: missing field '{field}'")
-    if q.get("id") in seen:
-        errors.append(f"line {n}: duplicate id {q.get('id')}")
-    seen.add(q.get("id"))
+    missing = [k for k in REQUIRED if k not in q]
+    if missing:
+        errors.append(f"line {n}: missing fields {missing}")
+        continue
 
-    qtype = q.get("type")
-    types[qtype] += 1
-    if qtype not in TYPES:
-        errors.append(f"line {n}: unknown type '{qtype}'")
+    if q["id"] in seen:
+        errors.append(f"line {n}: duplicate id {q['id']}")
+    seen.add(q["id"])
 
-    gold = q.get("gold") or []
-    if qtype == "unanswerable" and gold:
-        errors.append(f"line {n}: unanswerable questions must have an empty gold list")
-    if qtype != "unanswerable" and not gold:
+    if q["type"] not in ALLOWED_TYPES:
+        errors.append(f"line {n}: unknown type {q['type']!r}")
+    types[q["type"]] += 1
+
+    if q["type"] == "unanswerable":
+        if q["gold"]:
+            errors.append(f"line {n}: unanswerable questions must have an empty gold list")
+    elif not q["gold"]:
         errors.append(f"line {n}: answerable questions need at least one gold entry")
 
-    for g in gold:
-        path = find_file(g.get("source", ""))
-        if path is None:
-            errors.append(f"line {n}: source file not found: {g.get('source')}")
-        elif g.get("evidence", "") not in path.read_text(encoding="utf-8"):
-            errors.append(f"line {n}: evidence not found in {g['source']}: {g.get('evidence')!r}")
+    for g in q["gold"]:
+        check_item(n, g, "gold", errors)
+        for alt in g.get("also_accept", []) if isinstance(g, dict) else []:
+            check_item(n, alt, "also_accept", errors)
 
 print(f"{len(seen)} questions checked. By type: {dict(types)}")
 if errors:
