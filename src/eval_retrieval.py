@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
 
-from search import retrieve
+import sys
+
+from search import retrieve, retrieve_routed
+
+MODE = sys.argv[1] if len(sys.argv) > 1 else "baseline"
+search_fn = retrieve_routed if MODE == "routed" else retrieve
 
 K = 10
 KS = (1, 3, 5, 10)
@@ -30,11 +35,12 @@ def first_rank(hits, gold):
 
 
 def main():
+    print("Mode:", MODE)
     results = []
     for q in load_questions():
         if not q["gold"]:  # unanswerable: nothing to retrieve
             continue
-        hits = retrieve(q["question"], k=K)
+        hits = search_fn(q["question"], k=K)
         ranks = [first_rank(hits, g) for g in q["gold"]]
         results.append((q, ranks))
 
