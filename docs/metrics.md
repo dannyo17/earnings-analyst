@@ -40,11 +40,12 @@ Fix: split oversized lines at sentence boundaries, fold tiny chunks into the pre
 |---|---|---|
 | Eval set | 16 questions (12 answerable, 4 unanswerable); retrieval scored on the 12 answerable (16 gold items) | evals/questions.jsonl |
 | Recall@1 | 6/16 = 38% | src/eval_retrieval.py |
-| Recall@3 | 10/16 = 62% | src/eval_retrieval.py |
-| Recall@5 | 10/16 = 62% | src/eval_retrieval.py |
-| Recall@10 | 10/16 = 62% (nothing found at ranks 6-10, so raising k alone does not help) | src/eval_retrieval.py |
-| MRR | 0.479 | src/eval_retrieval.py |
-| Full-hit@5 by question type | recent_fact 1/1, single_fact 3/3, exact_number 3/4, cross_company 0/4 | src/eval_retrieval.py |
-| Scoring note | First run with strict single-source matching gave Recall@5 44% and MRR 0.374. After accepting the same fact from a second document (press release or 10-Q), Recall@5 is 62% and MRR 0.479. This is a correction of false misses in the eval, not a system improvement, so the baseline is 62% / 0.479. | evals/validate_questions.py |
-| Failure patterns found | Cross-company questions retrieve only one of the two companies. Bare table rows rank poorly (AMD net income not in the top 50 of 3,408 chunks). | src/debug_retrieval.py |
+| Recall@3 | 11/16 = 69% | src/eval_retrieval.py |
+| Recall@5 | 12/16 = 75% | src/eval_retrieval.py |
+| Recall@10 | 12/16 = 75% (nothing found at ranks 6-10, so raising k alone does not help) | src/eval_retrieval.py |
+| MRR | 0.523 | src/eval_retrieval.py |
+| Full-hit@5 by question type | recent_fact 1/1, single_fact 3/3, exact_number 3/4, cross_company 2/4 | src/eval_retrieval.py |
+| Scoring note | The first run used strict single-source matching (Recall@5 44%, MRR 0.374). I then accepted the same fact from a second document (press release or 10-Q) wherever it appeared, which gave 62% / 0.479, and added Microsoft's headline sentence, which gave 75% / 0.523. These were corrections of false misses in the eval, not system improvements, so the baseline is 75% / 0.523. | evals/questions.jsonl |
+| Eval freeze | From this point the gold labels only change to fix a demonstrated labeling error, and any such fix is made before the next measurement, so before/after comparisons stay fair. | |
+| Remaining failures | AMD net income (q006, q016) and the AMD Data Center figure in q013 are not retrieved; Amazon net income (q016) is not retrieved. | src/debug_retrieval.py |
 | Caveat | Small eval set; expand to about 40 questions before quoting numbers externally | |
