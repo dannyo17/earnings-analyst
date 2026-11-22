@@ -1,7 +1,7 @@
 import sys
 
 from llm import ask_llm
-from search import retrieve
+from search import retrieve, retrieve_routed
 
 SYSTEM = (
     "You are an AI research analyst answering questions about company earnings "
@@ -13,9 +13,11 @@ SYSTEM = (
     "documents. Never use outside knowledge. Quote figures exactly as written."
 )
 
+RETRIEVERS = {"baseline": retrieve, "routed": retrieve_routed}
 
-def answer(question, k=5):
-    hits = retrieve(question, k)
+
+def answer(question, k=5, retrieval="routed"):
+    hits = RETRIEVERS[retrieval](question, k)
     context = "\n\n".join(
         f"[{i}] ({h['ticker']}, {h['doc_type']}, {h['date']})\n{h['text']}"
         for i, h in enumerate(hits, 1)

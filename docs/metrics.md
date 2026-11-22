@@ -59,3 +59,21 @@ Fix: split oversized lines at sentence boundaries, fold tiny chunks into the pre
 | 2 | Company-aware retrieval: detect company names in the question, search only those companies' chunks, interleave results when a question names several (no index rebuild) | 75% (12/16) | 0.542 | 1/1, 3/3, 3/4, 2/4 | Small gain: Recall@3 69% to 75%, MRR 0.523 to 0.542, no question lost its top-5 hit. Recall@5 unchanged. AMD net income (q006, q016) and the AMD item in q013 are still not found even when only AMD chunks compete, so the cause is the chunk content (large table blocks), not other companies. |
 | 2b | Diagnostic only: routed retrieval measured 50 results deep | Recall@20 81%, Recall@50 88% (14/16) | MRR 0.547 | n/a | Right chunks for AMD Data Center (q013, rank 18) and Amazon net income (q016, rank 34) exist but rank low. AMD net income (q006, and the AMD side of q016) is not in the top 50, so it cannot be fixed by reranking alone. |
 | 3 | Rerank 50 company-aware candidates with cross-encoder ms-marco-MiniLM-L-6-v2, keep top 10 | 69% (11/16) | 0.543 | 1/1, 3/3, 3/4, 1/4 | No net gain, not adopted. Recall@1 rose 38% to 44% but Recall@5 fell 75% to 69% and MRR was flat (0.542 to 0.543). Search time went from 0.03 s to 2.31 s per question. Did not rescue the two deep items (q013 AMD at rank 18, q016 Amazon at rank 34). Hypothesis: a reranker trained on web search does not score numeric table chunks well. Current best retrieval: company-aware (experiment 2). |
+
+## End-to-end answer quality (16 questions; Haiku generates, Sonnet grades; top-5 passages)
+
+| Metric | RAG, company-aware retrieval | RAG, original retrieval | Same model, no documents |
+|---|---|---|---|
+| Answerable questions correct | 11/12 (92%) | 11/12 (92%) | 0/12 |
+| Confidently wrong on answerable questions | 0 | 0 | 1 in one run, 0 in another |
+| Refused on answerable questions | 1 (q016) | 1 (q016) | 11 to 12 |
+| Unanswerable questions correctly refused | 4/4 | 4/4 | 3/4 (invented an Intel revenue figure in both runs) |
+| Citation accuracy (correct answers citing a passage with the gold evidence) | 9/11 | 9/11 | n/a |
+| Answered correctly when retrieval reached the evidence | 9/9 | 9/9 | n/a |
+| Average time per question | 1.82 s | 1.85 s | not timed |
+| Average tokens per question | 3,057 in, 300 out | 3,059 in, 312 out | not measured |
+| Caveat: rounding | 2 of the 11 correct answers (q006, q008) used the press-release precision ($2.4 billion, $201.9 billion); the grader accepted them against exact table figures | same | |
+| Caveat: baseline varies | No-retrieval answers differ between runs, so that column is approximate | | |
+| Caveat: size | Small, easy set; expand to about 40 harder questions before quoting externally | | |
+| Finding | Company-aware retrieval improved MRR (0.523 to 0.542) but did not change any final answer | | |
+| Raw outputs | evals/results/answers_routed.json, evals/results/answers_baseline.json | | |
