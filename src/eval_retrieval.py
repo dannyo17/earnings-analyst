@@ -1,16 +1,21 @@
 import json
+import sys
+import time
 from pathlib import Path
 
-import sys
-
-from search import retrieve, retrieve_routed
-
-MODE = sys.argv[1] if len(sys.argv) > 1 else "baseline"
-search_fn = retrieve_routed if MODE == "routed" else retrieve
+from search import retrieve, retrieve_reranked, retrieve_routed
 
 K = 10
 KS = (1, 3, 5, 10)
 ROOT = Path(__file__).resolve().parent.parent
+
+MODES = {
+    "baseline": retrieve,
+    "routed": retrieve_routed,
+    "reranked": retrieve_reranked,
+}
+MODE = sys.argv[1] if len(sys.argv) > 1 else "baseline"
+search_fn = MODES[MODE]
 
 
 def load_questions():
@@ -36,11 +41,16 @@ def first_rank(hits, gold):
 
 def main():
     print("Mode:", MODE)
+    search_fn("warm up", k=1)  # load models first so timing is fair
+
     results = []
+    seconds = []
     for q in load_questions():
         if not q["gold"]:  # unanswerable: nothing to retrieve
             continue
+        start = time.time()
         hits = search_fn(q["question"], k=K)
+        seconds.append(time.time() - start)
         ranks = [first_rank(hits, g) for g in q["gold"]]
         results.append((q, ranks))
 
@@ -55,6 +65,7 @@ def main():
         print(f"Recall@{k}: {found}/{len(all_ranks)} = {found / len(all_ranks):.0%}")
     mrr = sum(1 / r for r in all_ranks if r) / len(all_ranks)
     print(f"MRR: {mrr:.3f}")
+    print(f"Average search time: {sum(seconds) / len(seconds):.2f} s per question")
 
     print("\nFull-hit@5 by question type (all gold items in top 5)")
     by_type = {}

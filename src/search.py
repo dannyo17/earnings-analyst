@@ -3,7 +3,7 @@ import re
 import sys
 
 import chromadb
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
 QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
@@ -67,6 +67,19 @@ def retrieve_routed(question, k=5):
                 merged.append(hits[rank])
     return merged[:k]
 
+RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+_reranker = None
+
+
+def retrieve_reranked(question, k=5, candidates=50):
+    """Fetch a wide candidate pool with company-aware search, then re-score it with a cross-encoder."""
+    global _reranker
+    if _reranker is None:
+        _reranker = CrossEncoder(RERANK_MODEL)
+    pool = retrieve_routed(question, candidates)
+    scores = _reranker.predict([(question, hit["text"]) for hit in pool])
+    ranked = sorted(zip(pool, scores), key=lambda pair: pair[1], reverse=True)
+    return [{**hit, "score": float(score)} for hit, score in ranked][:k]
 
 if __name__ == "__main__":
     question = " ".join(sys.argv[1:])
