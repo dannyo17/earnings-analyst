@@ -10,6 +10,25 @@ DB_DIR = "data/chroma"
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
 BATCH = 64
 
+USE_HEADER = False  # experiment 1: prepending a context line hurt retrieval (see docs/metrics.md)
+
+COMPANY_NAMES = {
+    "NVDA": "NVIDIA",
+    "AMD": "AMD (Advanced Micro Devices)",
+    "MSFT": "Microsoft",
+    "AMZN": "Amazon",
+}
+
+
+def context_header(chunk):
+    """One line saying where this chunk comes from, added only to the text we embed."""
+    company = COMPANY_NAMES.get(chunk["ticker"], chunk["ticker"])
+    if chunk["doc_type"].startswith("8-K"):
+        when = f"filed {chunk['date']}"
+    else:
+        when = f"period ended {chunk['date']}"
+    return f"{company} {chunk['doc_type']}, {when}."
+
 if __name__ == "__main__":
     lines = CHUNKS.read_text(encoding="utf-8").splitlines()
     chunks = [json.loads(line) for line in lines]
@@ -27,7 +46,11 @@ if __name__ == "__main__":
     start = time.time()
     for i in range(0, len(chunks), BATCH):
         batch = chunks[i : i + BATCH]
-        embeddings = model.encode([c["text"] for c in batch], normalize_embeddings=True)
+        texts = [
+            (context_header(c) + "\n" + c["text"]) if USE_HEADER else c["text"]
+            for c in batch
+        ]
+        embeddings = model.encode(texts, normalize_embeddings=True)
         collection.add(
             ids=[c["id"] for c in batch],
             embeddings=embeddings.tolist(),

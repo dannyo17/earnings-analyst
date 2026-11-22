@@ -49,3 +49,10 @@ Fix: split oversized lines at sentence boundaries, fold tiny chunks into the pre
 | Eval freeze | From this point the gold labels only change to fix a demonstrated labeling error, and any such fix is made before the next measurement, so before/after comparisons stay fair. | |
 | Remaining failures | AMD net income (q006, q016) and the AMD Data Center figure in q013 are not retrieved; Amazon net income (q016) is not retrieved. | src/debug_retrieval.py |
 | Caveat | Small eval set; expand to about 40 questions before quoting numbers externally | |
+
+## Experiments (before / after)
+
+| # | Change | Recall@5 | MRR | Full-hit@5 (recent / single / exact / cross) | Verdict |
+|---|---|---|---|---|---|
+| 0 | Baseline (bge-small-en-v1.5, 1,500-char chunks) | 75% (12/16) | 0.523 | 1/1, 3/3, 3/4, 2/4 | |
+| 1 | Prepend a "company, doc type, date" line to each chunk before embedding (index rebuild 265 s) | 56% (9/16) | 0.383 | 0/1, 3/3, 2/4, 1/4 | Worse, reverted. Fixed the AMD Data Center item in q013, but pushed simple questions down (q001 lost, q002 rank 1 to 3, q004 1 to 4). Recall@10 unchanged at 75%. Hypothesis: shared text on every chunk of a company flattens differences between that company's chunks. |
