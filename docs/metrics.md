@@ -102,3 +102,57 @@ Earlier tables used the 16-question set and are not comparable with these number
 | Answered correctly when retrieval reached the evidence | 12/12 | n/a |
 | Average time / tokens per question | 1.83 s; 3,138 in, 314 out | n/a |
 | Caveat | q020 (10-K "Total" row) and q021 (AMD outlook) were answered correctly although the strict check found no gold chunk, because the same facts appear in other passages. The set is nearly saturated at 16/17, so it cannot show further improvement. | |
+
+## Eval set v3 (28 questions: 22 answerable, 6 unanswerable)
+
+Question mix: recent_fact 1, single_fact 7, exact_number 7, cross_company 5, multi_section 2, unanswerable 6.
+v3 is a different and harder set than v1 (16) and v2 (22), so its numbers are **not comparable** with theirs.
+Corpus and system are the same as v2 (bge-small embeddings, Chroma, routed retrieval, k=5, Claude Haiku answers, Claude Sonnet judge). The system did not change between any of the three measurements below; only the measurement did.
+
+### How the v3 measurement was corrected (system unchanged)
+
+| Step | What changed | Retrieval Recall@5 (baseline / routed) | MRR (baseline / routed) | Full-hit@5 | End-to-end correct |
+|---|---|---|---|---|---|
+| 1. First run | Nothing (6 new questions added, single-source labels, lenient judge) | 62% (18/29) / 62% (18/29) | 0.423 / 0.433 | 13/22 | 19/22 |
+| 2. Label correction | 9 alternate evidence strings added on 4 questions (q013, q020, q024, q027). Each is verified verbatim in the processed files and was the passage the model actually answered from | 76% (22/29) / 76% (22/29) | 0.518 / 0.520 | 17/22 | not re-run |
+| 3. Stricter judge | Judge now requires the exact figure (no rounding to fewer digits), all facts in a multi-part reference, and no "part is unavailable" answers | unchanged | unchanged | 17/22 | **15/22 (68%)** |
+
+These are **measurement corrections, not improvements**. Steps 2 and 3 are the eval catching up with what the system was already doing: the labels missed chunks that really contain the fact, and the lenient judge accepted rounded and partial answers. If rounding is tolerated, the end-to-end score is 19/22.
+
+### v3 end-to-end results (routed, k=5, strict judge)
+
+| Metric | RAG | No retrieval |
+|---|---|---|
+| Answerable correct (22) | **15/22 (68%)** | 0/22 |
+| Answerable incorrect | 5 | 1 |
+| Answerable refused | 2 | 21 |
+| Unanswerable correctly refused (6) | **6/6** | 4/6 (invented answers on q010, q028) |
+| Citations containing gold evidence | 15/15 of correct answers | n/a |
+| Retrieval reached all gold in top 5 | 17/22; of those, answered correctly 15/17 | n/a |
+| Average time per question | 1.89 s | |
+| Average tokens per question | 3,136 in / 316 out | |
+
+### Why the 7 non-correct answers failed (0 fabricated figures)
+
+| Category | Questions | What happened |
+|---|---|---|
+| Rounded away the exact figure | q006, q008, q015 | Facts correct, precision lost: $2.4B vs $2,428M, $201.9B vs $201,944M, $92.3B vs $92.279B. For q008 and q015 the exact figure was in the retrieved chunks, but the model used the rounded narrative figure |
+| Retrieval miss, partial answer | q021, q026 | Q4 outlook sentence and June-quarter Azure growth never surfaced; the model reported what it found and said the rest was not in the passages |
+| Retrieval miss, refusal | q016, q025 | Amazon net income and the 10-K employee count were not retrieved; the system said "I don't know" |
+
+Known grader note: q015 asks which company is higher and the answer correctly says NVIDIA; the strict judge failed it only because Microsoft's $92.279B was rounded to $92.3B. It is counted as incorrect and left that way, because the judge is not changed after seeing results.
+
+### Retrieval misses that remain (real, not labeling)
+
+q006 (AMD net income table row), q016 (AMD and Amazon net income), q021 (Q4 outlook sentence), q025 (10-K employee count), q026 (Azure growth, both quarters). Recall@5 equals Recall@10, so these chunks are not in the top 10 at all.
+Routing adds almost nothing on this set (MRR 0.520 vs 0.518; Recall@3 and Recall@5 identical).
+
+## Next experiments (one change at a time, before/after row for each, kept only if it helps)
+
+1. Generation prompt: prefer the exact table figure over a rounded narrative figure. Targets q008 and q015 (exact figure already retrieved). Does not help q006, whose exact row is not retrieved.
+2. Table-aware chunking or row labels, so bare rows like "Net income | 2,428 | ..." carry their company, period and metric. Targets q006, q016.
+3. Hybrid retrieval (BM25 + vector) for numeric and exact-phrase queries. Targets q025 and other 10-K prose.
+4. Cross-company and cross-quarter query splitting. Targets q016, q026.
+5. Chunk size and overlap.
+6. Larger reranker (the small one did not help in experiment 3).
+7. Before tuning further, add held-out questions that no experiment was tuned on, to guard against overfitting to these 28.
