@@ -77,3 +77,28 @@ Fix: split oversized lines at sentence boundaries, fold tiny chunks into the pre
 | Caveat: size | Small, easy set; expand to about 40 harder questions before quoting externally | | |
 | Finding | Company-aware retrieval improved MRR (0.523 to 0.542) but did not change any final answer | | |
 | Raw outputs | evals/results/answers_routed.json, evals/results/answers_baseline.json | | |
+
+## Eval set v2 (22 questions: 17 answerable with 22 gold evidence items, 5 unanswerable)
+
+Earlier tables used the 16-question set and are not comparable with these numbers.
+
+| Retrieval metric | Original search | Company-aware |
+|---|---|---|
+| Recall@1 | 9/22 = 41% | 9/22 = 41% |
+| Recall@3 | 14/22 = 64% | 15/22 = 68% |
+| Recall@5 | 16/22 = 73% | 16/22 = 73% |
+| Recall@10 | 16/22 = 73% | 16/22 = 73% |
+| MRR | 0.526 | 0.539 |
+| Full-hit@5 by type | recent 1/1, single 4/4, exact 5/7, cross 2/4, multi 0/1 | same |
+| Average search time | 0.02 s | 0.02 s |
+
+| End-to-end metric (company-aware retrieval, top 5) | RAG | Same model, no documents |
+|---|---|---|
+| Answerable questions correct | 16/17 (94%) | 0/17 |
+| Confidently wrong | 0 | 1 (Azure growth) |
+| Refused on answerable questions | 1 (q016) | 16 |
+| Unanswerable questions correctly refused | 5/5 | 4/5 (invented an Intel figure) |
+| Citation accuracy | 12/16 | n/a |
+| Answered correctly when retrieval reached the evidence | 12/12 | n/a |
+| Average time / tokens per question | 1.83 s; 3,138 in, 314 out | n/a |
+| Caveat | q020 (10-K "Total" row) and q021 (AMD outlook) were answered correctly although the strict check found no gold chunk, because the same facts appear in other passages. The set is nearly saturated at 16/17, so it cannot show further improvement. | |
