@@ -3,7 +3,7 @@ import sys
 import time
 from pathlib import Path
 
-from search import retrieve, retrieve_reranked, retrieve_routed
+from search import retrieve, retrieve_dated, retrieve_hybrid, retrieve_reranked, retrieve_routed
 
 K = 10
 KS = (1, 3, 5, 10)
@@ -13,6 +13,8 @@ MODES = {
     "baseline": retrieve,
     "routed": retrieve_routed,
     "reranked": retrieve_reranked,
+    "hybrid": retrieve_hybrid,
+    "dated": retrieve_dated,
 }
 MODE = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 search_fn = MODES[MODE]

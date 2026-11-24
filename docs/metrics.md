@@ -164,3 +164,23 @@ Saved: evals/results/answers_routed_exp1_exact_figures_prompt.json.
 4. Chunk size and overlap.
 5. Larger reranker (the small one did not help in an earlier experiment).
 6. Before tuning further, add held-out questions that no experiment was tuned on, to guard against overfitting to these 28.
+
+## Retrieval experiments on v3 (baseline: routed, 1,500-char chunks, bge-small, k=5)
+
+One change at a time, kept only if it helps. Baseline routed: Recall@5 69% (20/29), Recall@10 69%, MRR 0.468, full-hit@5 15/22.
+
+| # | Change | Recall@5 | Recall@10 | MRR | Full-hit@5 | Verdict |
+|---|---|---|---|---|---|---|
+| 2 | Hybrid retrieval: BM25 + vector, reciprocal rank fusion (vs baseline 69%, 0.466, 15/22) | 52% (15/29) | 55% | 0.410 | 10/22 | Worse; not adopted |
+| 3 | Chunk size 1,500 to 600 chars (8,583 chunks); baseline / routed | 31% / 38% | 45% / 52% | 0.200 / 0.202 | 5/22 / 6/22 | Much worse; reverted and verified |
+| 4 | Period-aware routing: keep only documents dated within 60 days after a date named in the question | 69% (20/29) | 76% (22/29) | 0.507 | 15/22 | Missed the pre-set criterion (full-hit@5 above 15/22); ranking gains only; not adopted as default |
+
+What the diagnostics showed:
+- The failing gold chunks rank 52 to 113 in vector search (q006 112, q008 113, q015 52; q025 beyond 200) and 31 to 509 in BM25 (q006 31, q008 76, q015 129, q025 509). Neither method puts them in the top 10.
+- BM25 ranked chunks that vector search had at rank 1 much lower (q005 at 106, q017 at 19). Our questions share words that appear in nearly every financial table (three months ended, revenue, net income, dates), so word matching adds noise. This is why hybrid lost.
+- Smaller chunks helped single-sentence answers (q021 outlook sentence: not found to rank 4; q023: rank 5 to 2) but collapsed table-row questions (exact_number full-hit@5 from 5/7 to 0/7 baseline and 1/7 routed), because a 600-character slice of a table usually lacks the period header and company name.
+- Restricting search to the right company and period (a handful of documents) still left q006, q008, q015 (Microsoft item) and q025 outside the top 10. The remaining failures are within-document ranking by the embedding model, not near-duplicate quarters alone.
+- Experiments 2 to 4, plus the earlier reranker, are four attempts with no adopted gain. By the pre-agreed rule (stop after three in a row), retrieval tweaks on this pipeline stop here.
+
+Known limitation of period-aware routing: it only helps when the question states an explicit date, and all of our test questions do, so any benefit would be overstated for real users who say "last quarter".
+Code for experiments 2 to 4 stays in src/search.py as unused modes (hybrid, dated) and src/eval_retrieval.py (hybrid, dated); the default remains routed.
