@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Earnings Analyst</title>
+<style>
+  :root {
+    --bg: #fafaf8; --surface: #ffffff; --text: #1c1c1a; --muted: #6b6b66;
+    --border: #e3e2dc; --accent: #1f5fbf; --on-accent: #ffffff;
+    --accent-soft: #e8f0fc; --error: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --surface: #1d1d1b; --text: #ecebe6; --muted: #9c9b94;
+      --border: #33332f; --accent: #7aa7ee; --on-accent: #0b1220;
+      --accent-soft: #1c2a42; --error: #f2b8b5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  form { display: flex; gap: 8px; }
+  input {
+    flex: 1; min-width: 0; padding: 12px 14px; font: inherit; color: inherit;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  }
+  input:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  button { font: inherit; cursor: pointer; }
+  .primary {
+    padding: 12px 18px; font-weight: 600; color: var(--on-accent);
+    background: var(--accent); border: 0; border-radius: 10px;
+  }
+  .primary:disabled { opacity: 0.6; cursor: wait; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 28px; }
+  .chip {
+    padding: 6px 12px; font-size: 0.875rem; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+  }
+  #answer { white-space: pre-wrap; }
+  .cite {
+    padding: 0 5px; margin: 0 1px; font-size: 0.8rem; font-weight: 600;
+    color: var(--accent); background: var(--accent-soft);
+    border: 0; border-radius: 6px;
+  }
+  .meta { color: var(--muted); font-size: 0.85rem; margin-top: 10px; }
+  h2 { font-size: 0.95rem; margin: 24px 0 8px; color: var(--muted); font-weight: 600; }
+  details.source {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; margin-top: 8px;
+  }
+  details.source[open] { border-color: var(--accent); }
+  summary { cursor: pointer; padding: 10px 14px; font-size: 0.9rem; }
+  pre.passage {
+    margin: 0; padding: 0 14px 14px; white-space: pre-wrap; word-break: break-word;
+    font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; color: var(--muted);
+    max-height: 320px; overflow: auto;
+  }
+  .error { color: var(--error); }
+  footer { margin-top: 40px; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Earnings Analyst</h1>
+  <p class="sub">Ask a question about NVIDIA, AMD, Microsoft or Amazon earnings. Every answer cites the filing passages it came from.</p>
+
+  <form id="form">
+    <input id="question" type="text" maxlength="500" autocomplete="off"
+           placeholder="e.g. What was NVIDIA's revenue for the three months ended July 26, 2026?"
+           aria-label="Your question" required>
+    <button id="submit" class="primary" type="submit">Ask</button>
+  </form>
+  <div id="examples" class="examples"></div>
+
+  <div id="result" hidden>
+    <div class="card" aria-live="polite">
+      <div id="answer"></div>
+      <div id="meta" class="meta"></div>
+    </div>
+    <h2>Sources</h2>
+    <div id="sources"></div>
+  </div>
+
+  <footer>
+    Answers are generated from SEC filings and earnings releases (10-K, 10-Q, 8-K exhibits) for NVIDIA, AMD,
+    Microsoft and Amazon, with documents through November 19, 2026. It can be wrong or say it doesn't know,
+    so check the cited passages. Not financial advice.
+  </footer>
+</main>
+
+<script>
+const EXAMPLES = [
+  { label: "Microsoft operating income",
+    q: "What was Microsoft's operating income for the three months ended September 30, 2026?" },
+  { label: "AWS growth",
+    q: "What year-over-year sales growth did Amazon Web Services achieve in the quarter ended September 30, 2026?" },
+  { label: "Compare two companies",
+    q: "Which company reported higher total revenue for the quarter ended September 30, 2026: Microsoft in its first quarter of fiscal 2027 or Amazon in its third quarter of 2026?" },
+  { label: "Not in the filings",
+    q: "How many Prime members does Amazon have?" },
+];
+
+const form = document.getElementById("form");
+const input = document.getElementById("question");
+const submit = document.getElementById("submit");
+const result = document.getElementById("result");
+const answerEl = document.getElementById("answer");
+const metaEl = document.getElementById("meta");
+const sourcesEl = document.getElementById("sources");
+
+EXAMPLES.forEach(({ label, q }) => {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "chip";
+  chip.textContent = label;
+  chip.addEventListener("click", () => { input.value = q; ask(q); });
+  document.getElementById("examples").appendChild(chip);
+});
+
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const question = input.value.trim();
+  if (question) ask(question);
+});
+
+function setLoading(loading) {
+  submit.disabled = loading;
+  submit.textContent = loading ? "Searching…" : "Ask";
+}
+
+async function ask(question) {
+  setLoading(true);
+  try {
+    const response = await fetch("/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    if (response.status === 422) throw new Error("Please enter a question between 3 and 500 characters.");
+    if (response.status === 429) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || "Too many requests. Please try again later.");
+    }
+    if (!response.ok) throw new Error("Something went wrong. Please try again.");
+    render(await response.json());
+  } catch (error) {
+    showError(error instanceof TypeError ? "Could not reach the server." : error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function showError(message) {
+  result.hidden = false;
+  answerEl.textContent = message;
+  answerEl.className = "error";
+  metaEl.textContent = "";
+  sourcesEl.textContent = "";
+}
+
+function citeButton(n) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "cite";
+  button.textContent = `[${n}]`;
+  button.addEventListener("click", () => {
+    const target = document.getElementById(`source-${n}`);
+    if (target) {
+      target.open = true;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+  return button;
+}
+
+// Builds the answer from text nodes only, so model output can never inject HTML.
+function renderRich(el, text, sourceCount) {
+  el.textContent = "";
+  text.split(/(\*\*[^*]+\*\*|\[\d+(?:\s*,\s*\d+)*\])/).forEach((part) => {
+    if (!part) return;
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      const strong = document.createElement("strong");
+      strong.textContent = part.slice(2, -2);
+      el.appendChild(strong);
+    } else if (/^\[\d/.test(part)) {
+      part.slice(1, -1).split(",").map((s) => parseInt(s, 10)).forEach((n) => {
+        el.appendChild(n >= 1 && n <= sourceCount
+          ? citeButton(n)
+          : document.createTextNode(`[${n}]`));
+      });
+    } else {
+      el.appendChild(document.createTextNode(part));
+    }
+  });
+}
+
+function render(data) {
+  result.hidden = false;
+  answerEl.className = "";
+  renderRich(answerEl, data.answer, data.sources.length);
+  metaEl.textContent =
+    `${data.seconds} s · ${data.input_tokens} tokens in, ${data.output_tokens} out`;
+
+  sourcesEl.textContent = "";
+  data.sources.forEach((s) => {
+    const details = document.createElement("details");
+    details.className = "source";
+    details.id = `source-${s.n}`;
+    const summary = document.createElement("summary");
+    summary.textContent = `[${s.n}] ${s.ticker} · ${s.doc_type} · ${s.date}`;
+    const passage = document.createElement("pre");
+    passage.className = "passage";
+    passage.textContent = s.text;
+    details.append(summary, passage);
+    sourcesEl.appendChild(details);
+  });
+}
+</script>
+</body>
+</html>
