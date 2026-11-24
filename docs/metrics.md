@@ -184,3 +184,19 @@ What the diagnostics showed:
 
 Known limitation of period-aware routing: it only helps when the question states an explicit date, and all of our test questions do, so any benefit would be overstated for real users who say "last quarter".
 Code for experiments 2 to 4 stays in src/search.py as unused modes (hybrid, dated) and src/eval_retrieval.py (hybrid, dated); the default remains routed.
+
+### Experiment 5: embedding model bge-small-en-v1.5 to bge-base-en-v1.5 (same chunks, same query prefix)
+
+| Mode | Recall@5 | Recall@10 | MRR | Full-hit@5 | Search time |
+|---|---|---|---|---|---|
+| bge-small baseline / routed | 69% (20/29) / 69% | 69% / 69% | 0.466 / 0.468 | 15/22 / 15/22 | 0.02 s / 0.03 s |
+| bge-base baseline / routed | 48% (14/29) / 52% (15/29) | 62% / 66% | 0.372 / 0.368 | 10/22 / 11/22 | 0.05 s / 0.06 s |
+
+Verdict: **worse, reverted** (index restored from backup and verified at 69% / 0.468 / 15/22). Index build time 866 s vs about 300 s for bge-small. It fixed q020 and q001 but lost q021, q014, q018 and q027. A larger model did not help on numeric tables and near-identical filings.
+
+## Retrieval phase conclusion
+
+Adopted: company routing (detect NVDA, AMD, MSFT, AMZN in the question and search only their chunks). Everything else tested and rejected: chunk context header, cross-encoder reranker, hybrid BM25 + vector, 600-character chunks, period-aware filtering, bge-base embeddings, and an exact-figure generation prompt.
+Final system: bge-small-en-v1.5, 1,500-character chunks, routed retrieval, k=5, Claude Haiku answers.
+Final v3 result (strict judge, corrected labels): 15/22 answerable correct (68%), 6/6 unanswerable refused, 0/22 for the same model with no retrieval, and 15/15 correct whenever the evidence reached the top 5.
+Known limitations, from the failing questions: exact table rows in 10-Q/10-K statements (q006, q008, q015, q016), 10-K prose such as the employee count (q025), outlook sentences next to similar quarters (q021), and cross-quarter comparisons (q026). The failure mode is almost always a refusal or a rounded figure, not an invented one. Company routing and the date-explicit questions mean results are likely better than for real users who phrase questions vaguely.
