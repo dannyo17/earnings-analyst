@@ -200,3 +200,60 @@ Adopted: company routing (detect NVDA, AMD, MSFT, AMZN in the question and searc
 Final system: bge-small-en-v1.5, 1,500-character chunks, routed retrieval, k=5, Claude Haiku answers.
 Final v3 result (strict judge, corrected labels): 15/22 answerable correct (68%), 6/6 unanswerable refused, 0/22 for the same model with no retrieval, and 15/15 correct whenever the evidence reached the top 5.
 Known limitations, from the failing questions: exact table rows in 10-Q/10-K statements (q006, q008, q015, q016), 10-K prose such as the employee count (q025), outlook sentences next to similar quarters (q021), and cross-quarter comparisons (q026). The failure mode is almost always a refusal or a rounded figure, not an invented one. Company routing and the date-explicit questions mean results are likely better than for real users who phrase questions vaguely.
+
+
+## Retrieval experiments 6-8 and failure diagnosis (2026-11-24 and 2026-11-25)
+
+All numbers use the frozen v3 question set and the same scoring as `eval_retrieval.py`. Baseline for comparison: routed retrieval, Recall@5 69%, MRR 0.468, full-hit@5 15/22.
+
+### Diagnosis of the 7 failing questions
+
+Ranks of each gold evidence item under routed retrieval (searching 150 deep) were 99, 85, 36, over 150, 34, 116, over 150 and 11 to 35. In every case, the document that holds the evidence appeared among the sources of the top 3 retrieved chunks. The failure is locating the right chunk inside the right document, not finding the document.
+
+Causes found in the failing chunks:
+- Table rows are bare numbers (`Net income | 2,428 | 1,243 | ...`) with no company or period; the column headers are several lines above.
+- Dilution: one relevant sentence sits inside a 1,500-character chunk about other topics.
+- Near-duplicate filings from adjacent quarters compete.
+- A date in the question (for example "January 25, 2026") matches the column headers of financial-table chunks and outranks the right chunk (q025).
+
+What the app answered on the 7 failures:
+- q006, q008, q015: the correct figure, rounded the way the press release rounds it ($2.4 billion, $201.9 billion, $92.3 billion). The strict judge requires the exact table figure, so they are graded incorrect.
+- q021, q026: answered one part and said it could not find the other part. No number was invented.
+- q016, q025: said "I don't know" or could not complete the comparison.
+
+Reporting: strict exact-figure accuracy is 15/22 (68%). Counting the three rounded answers as correct would give 18/22 (82%). That second figure is post hoc: I read those three answers by hand after seeing the results, so it is reported only alongside the strict number, never alone.
+
+### Experiment 6: doc-first retrieval (not adopted)
+
+Pick the top 2 or 3 documents per company from the vector search, then rank only the chunks inside those documents with vector similarity fused with BM25.
+
+| Setting | Recall@5 | MRR | Full-hit@5 | Questions lost |
+|---|---|---|---|---|
+| Routed (baseline) | 69% | 0.468 | 15/22 | |
+| 2 docs, 3 chunks each | 59% | 0.444 | 12/22 | q019, q020, q023 |
+| 3 docs, 2 chunks each | 55% | 0.434 | 11/22 | q005, q019, q020, q023 |
+
+No question was gained. An earlier run of this experiment ignored `also_accept` alternates and showed two false gains; fixing the script to use the official `first_rank` reproduced the baseline exactly (69%, 0.468, 15/22).
+
+### Experiment 7: contextual retrieval (not adopted)
+
+For each of the 3,408 chunks, Claude Haiku 5.5 wrote 1 to 3 sentences placing the chunk in its document (company, document type, period, statement, what each column means). The context was prepended to the chunk for embedding only; the stored text stayed the original. Generation: 0 failures, 5.04M input and 0.55M output tokens, about $0.78. The 5 sample contexts checked by hand contained no invented facts.
+
+| Index | Recall@5 | MRR | Full-hit@5 | Questions lost |
+|---|---|---|---|---|
+| Plain (baseline) | 69% | 0.468 | 15/22 | |
+| Contextual | 59% | 0.281 | 11/22 | q005, q014, q017, q023 |
+
+Some hard items improved (q021's outlook sentence from rank 116 to 3; q015's Microsoft revenue row from 36 to 10), but the easy questions regressed. Chunks over the model's 512-token limit rose from 81 (2.4%) to 297 (8.7%) once context was added. My hypothesis, not tested: the shared context language makes chunks from the same filing look alike.
+
+### Experiment 8: fusing the plain and contextual indexes (not adopted)
+
+Search both indexes per company, 30 candidates each, combine with reciprocal rank fusion (k=60).
+
+| | Recall@5 | MRR | Full-hit@5 | Questions lost |
+|---|---|---|---|---|
+| Fused | 62% | 0.390 | 12/22 | q013, q014, q023 |
+
+### Conclusion
+
+Eight ranking and indexing changes were tested against the same frozen set (experiments 2 to 8, plus company routing). Only routing was adopted. By the exit rule agreed beforehand, retrieval experiments stop. The remaining misses are a documented limitation, not an unexplained failure.
