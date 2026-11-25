@@ -34,7 +34,7 @@ flowchart LR
 
 ## Results
 
-Evaluated on 28 hand-written questions: 22 answerable (single facts, exact numbers, cross-company comparisons, multi-section questions) and 6 unanswerable. Gold evidence is a verbatim substring of the source filing, checked by a validator script. Answers are graded by an LLM judge (Claude Sonnet) that requires the exact figure when the reference gives one.
+Evaluated on two question sets. The original set has 28 hand-written questions: 22 answerable (single facts, exact numbers, cross-company comparisons, multi-section questions) and 6 unanswerable. The held-out set has 23 questions (20 answerable, 3 unanswerable) that the system was never tuned against, described below. Gold evidence is a verbatim substring of the source filing, checked by a validator script. Answers are graded by an LLM judge (Claude Sonnet) that requires the exact figure when the reference gives one. The table below covers the original 28.
 
 | | This system | Same model, no retrieval |
 |---|---|---|
@@ -45,9 +45,23 @@ Evaluated on 28 hand-written questions: 22 answerable (single facts, exact numbe
 | Average latency | 1.8 s | |
 | Average tokens per question | about 3,100 in, 300 out | |
 
-Retrieval: Recall@5 of 69% (20 of 29 gold evidence items in the top 5), MRR 0.47.
+Retrieval on the original set: Recall@5 of 69% (20 of 29 gold evidence items in the top 5), MRR 0.47.
 
 The system's failures are retrieval misses, not invented numbers. Of the 7 misses, 3 gave the right figure rounded the way the press release rounds it (for example $2.4 billion instead of $2,428 million, which the strict judge rejects), 2 answered one part of a two-part question and said the other part wasn't in the documents, and 2 refused or couldn't complete the comparison. Counting the 3 rounded answers as correct would give 18/22 (82%). I report that only alongside the strict number, because I judged those three answers by hand after seeing the results. See [docs/metrics.md](docs/metrics.md) for the full measurement history.
+
+
+### Held-out check
+
+After the retrieval experiments ended, I built a second set the system had never been tuned against: 20 answerable and 3 unanswerable questions. The set was committed to git before the first run and run once, with no label changes afterward.
+
+| | Original 28 | Held-out 23 | Combined 51 |
+|---|---|---|---|
+| Answerable questions correct | 15/22 (68%) | 12/20 (60%) | **27/42 (64%)** |
+| Same model, no retrieval | 0/22 | 1/20 | 1/42 (2%) |
+| Unanswerable correctly refused | 6/6 | 3/3 | 9/9 |
+| Correct when the evidence reached the top 5 | 15/15 | 10/10 | 25/25 |
+
+The original set was used to choose company routing and to correct labels, so its score is optimistic. The held-out 60% is the better estimate for new questions, with a wide margin of error (20 questions is roughly plus or minus 20 points). The 8 held-out misses were 6 refusals and 2 answers marked incorrect: one gave a correctly rounded figure where the exact table figure was required, and one could not isolate the figure and said so. None contradicted the filings. Exact-number questions were again the weak spot, with 1 of 5 retrieved. Full details are in [docs/metrics.md](docs/metrics.md).
 
 ## What I tried
 
@@ -75,7 +89,7 @@ The takeaway: in every failing case the search finds the right document, but the
 - A few 10-K facts (for example, the employee count) are missed.
 - Company detection is a hard-coded keyword list for four companies. Other companies are not supported.
 - Nearly all eval questions name an explicit date, so vague questions like "last quarter" are lightly tested.
-- The eval set is small: each question moves a score by about 4.5 points.
+- The eval sets are small (28 original questions, 20 answerable held-out questions), so scores carry a margin of error of roughly 10 to 20 points.
 - The corpus is a fixed snapshot (documents through 2026-11-19); no earnings call transcripts.
 - Not financial advice. Answers can be wrong; check the cited passages.
 
