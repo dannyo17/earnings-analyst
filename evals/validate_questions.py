@@ -1,4 +1,5 @@
 import json
+import os
 from collections import Counter
 from pathlib import Path
 
@@ -29,7 +30,8 @@ def check_item(n, item, label, errors):
         errors.append(f"line {n}: {label} evidence not found in {item['source']}: {item['evidence']!r}")
 
 
-lines = (ROOT / "evals" / "questions.jsonl").read_text(encoding="utf-8").splitlines()
+QUESTIONS_FILE = os.getenv("QUESTIONS_FILE", "questions.jsonl")
+lines = (ROOT / "evals" / QUESTIONS_FILE).read_text(encoding="utf-8").splitlines()
 errors = []
 seen = set()
 types = Counter()

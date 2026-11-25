@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 from search import retrieve, retrieve_dated, retrieve_hybrid, retrieve_reranked, retrieve_routed
 
 K = 10
+QUESTIONS_FILE = os.getenv("QUESTIONS_FILE", "questions.jsonl")
 KS = (1, 3, 5, 10)
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -22,7 +24,7 @@ search_fn = MODES[MODE]
 
 def load_questions():
     questions = []
-    with open(ROOT / "evals" / "questions.jsonl", encoding="utf-8") as f:
+    with open(ROOT / "evals" / QUESTIONS_FILE, encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 questions.append(json.loads(line))

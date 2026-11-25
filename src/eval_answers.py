@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import sys
 import time
@@ -10,6 +11,7 @@ from llm import ask_llm
 ROOT = Path(__file__).resolve().parent.parent
 RETRIEVAL = sys.argv[1] if len(sys.argv) > 1 else "routed"
 K = 5
+QUESTIONS_FILE = os.getenv("QUESTIONS_FILE", "questions.jsonl")
 JUDGE_MODEL = "claude-sonnet-5-5"
 
 # Same model as the RAG system, but with no documents at all
@@ -39,7 +41,7 @@ JUDGE_SYSTEM = (
 
 
 def load_questions():
-    with open(ROOT / "evals" / "questions.jsonl", encoding="utf-8") as f:
+    with open(ROOT / "evals" / QUESTIONS_FILE, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
@@ -149,7 +151,8 @@ def main():
 
     out_dir = ROOT / "evals" / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"answers_{RETRIEVAL}.json"
+    suffix = "" if QUESTIONS_FILE == "questions.jsonl" else "_" + Path(QUESTIONS_FILE).stem
+    out_path = out_dir / f"answers_{RETRIEVAL}{suffix}.json"
     out_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
     print(f"\nFull results saved to {out_path}")
 
