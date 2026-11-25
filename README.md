@@ -47,7 +47,7 @@ Evaluated on 28 hand-written questions: 22 answerable (single facts, exact numbe
 
 Retrieval: Recall@5 of 69% (20 of 29 gold evidence items in the top 5), MRR 0.47.
 
-The system's failures are retrieval misses, not invented numbers: it either refuses, reports only part of the answer, or falls back to a rounded figure from press-release text. See [docs/metrics.md](docs/metrics.md) for the full measurement history. The eval set was corrected during development (alternate evidence accepted for facts that appear in more than one filing, and a stricter judge). Those changes are recorded as measurement corrections, never as improvements to the system.
+The system's failures are retrieval misses, not invented numbers. Of the 7 misses, 3 gave the right figure rounded the way the press release rounds it (for example $2.4 billion instead of $2,428 million, which the strict judge rejects), 2 answered one part of a two-part question and said the other part wasn't in the documents, and 2 refused or couldn't complete the comparison. Counting the 3 rounded answers as correct would give 18/22 (82%). I report that only alongside the strict number, because I judged those three answers by hand after seeing the results. See [docs/metrics.md](docs/metrics.md) for the full measurement history.
 
 ## What I tried
 
@@ -63,8 +63,11 @@ Each change was tested alone against the same frozen question set and kept only 
 | Filter to documents dated near the period named in the question | No gain in the top 5 (MRR 0.47 to 0.51) |
 | `bge-base-en-v1.5` instead of `bge-small-en-v1.5` | Worse (Recall@5 52%), 3x slower to index |
 | Prompt change: prefer the exact table figure over a rounded one | No effect: the exact table rows were never retrieved |
+| Two-stage retrieval: pick the top documents, then rank chunks inside them (vector + BM25) | Worse: Recall@5 59%, full-hit 12/22 |
+| LLM-written context for every chunk, prepended before embedding (Claude Haiku, about $0.78 for 3,408 chunks) | Worse: Recall@5 59%, MRR 0.47 to 0.28 |
+| Fuse the plain and contextual indexes | Worse: Recall@5 62%, full-hit 12/22 |
 
-The takeaway: the remaining failures are exact table rows and one 10-K sentence that the embedding search can't rank within a handful of near-identical filings. Next ideas are an LLM-based reranker over a wider candidate pool and structured extraction of the financial statements.
+The takeaway: in every failing case the search finds the right document, but the chunk holding the number loses to a better-matching chunk of the same filing. The causes are bare table rows with no company or period, one relevant sentence inside a long chunk, and near-identical quarterly filings. Eight changes to ranking and indexing were tested and only company routing helped, so I stopped there and wrote up the diagnosis in [docs/metrics.md](docs/metrics.md). The remaining idea is structured extraction of the financial statements, answered through function calling.
 
 ## Known limitations
 
