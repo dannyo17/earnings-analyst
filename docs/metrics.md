@@ -257,3 +257,52 @@ Search both indexes per company, 30 candidates each, combine with reciprocal ran
 ### Conclusion
 
 Eight ranking and indexing changes were tested against the same frozen set (experiments 2 to 8, plus company routing). Only routing was adopted. By the exit rule agreed beforehand, retrieval experiments stop. The remaining misses are a documented limitation, not an unexplained failure.
+
+
+## Held-out evaluation (2026-11-25)
+
+### Method
+- 40 passages were sampled with a fixed seed (2026), 10 per company, by `src/sample_passages.py`.
+- The first 33 passages were used: 20 produced an answerable question and 13 were skipped because they held no specific fact (boilerplate, exhibit lists, legal language). No passage was skipped for retrieval difficulty.
+- 20 answerable and 3 unanswerable questions: `evals/heldout.jsonl`.
+- Alternate evidence (`also_accept`) was decided before the first run, using `src/find_figures.py` and `src/find_phrase.py` and the same precision rule as the original set. 17 alternates on 6 questions.
+- The set was committed to git before the first run and run once on the final system (plain index, routed retrieval, k=5, same judge). No labels were changed afterward.
+
+### Results (held-out, 20 answerable + 3 unanswerable)
+
+| | RAG | No retrieval |
+|---|---|---|
+| Answerable correct | 12/20 (60%) | 1/20 |
+| Unanswerable correctly refused | 3/3 | 2/3 |
+| Correct when evidence reached the top 5 | 10/10 | |
+
+Retrieval: Recall@5 10/20 (50%), Recall@10 55%, MRR 0.377. Full-hit@5: single_fact 9/15, exact_number 1/5.
+
+### Original 28 vs held-out 23 vs combined 51
+
+| | Original (studied) | Held-out (unseen) | Combined |
+|---|---|---|---|
+| Answerable correct (RAG) | 15/22 (68%) | 12/20 (60%) | 27/42 (64%) |
+| Answerable correct (no retrieval) | 0/22 | 1/20 | 1/42 (2%) |
+| Unanswerable correctly refused (RAG) | 6/6 | 3/3 | 9/9 |
+| Unanswerable correctly refused (no retrieval) | 4/6 | 2/3 | 6/9 |
+| Correct when evidence reached top 5 | 15/15 | 10/10 | 25/25 |
+| Recall@5 | 69% | 50% | 61% |
+
+The original set was used to choose routing and to correct labels, so its score is expected to be optimistic. The held-out 60% is the better estimate for new questions, with a wide margin of error (20 questions: roughly plus or minus 20 points).
+
+### What the 8 held-out misses were
+- 6 refusals (h004, h005, h011, h012, h014, h018): the evidence was not retrieved. 4 of the 6 were number-heavy table rows or a cover-page figure.
+- h006: gave the right figure rounded ($65.3 billion from a summary table; reference $65,287 million). The strict judge rejects it.
+- h019: could not isolate the $711 million release from a table and said so, naming why the nearby "873" figure was the wrong number to use.
+- No answer contradicted the filings or invented a figure.
+- Exact-number questions were again the weak spot: 1 of 5 retrieved.
+
+### Labeling notes (not corrected, by the freeze rule)
+- h010: the answer (57%) was correct and cited the right filing, but from a different sentence than the labeled evidence, so retrieval counted it as a miss.
+- h015: the app computed 22.6% from two reported figures (reference states 23%). The judge accepted it as a matching calculation; retrieval counted it as a miss because the 23% sentence was not retrieved.
+- Counting the rounded h006 answer as correct would give 13/20 on held-out and 31/42 combined (74%). That figure is reported only alongside the strict one, because I judged the answer by hand after seeing the results.
+
+### Limitations
+- 20 answerable questions is a small sample.
+- Random passages produce mostly single-fact and exact-number questions, so this mix has no cross-company or multi-section questions and is not directly comparable to the original set.
